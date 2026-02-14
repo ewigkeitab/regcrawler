@@ -1,23 +1,23 @@
-# RegCrawler - 台灣法規動態爬蟲與 AI 摘要工具
+# RegCrawler - 法規動態爬蟲與 AI 摘要工具
 
-這是一個自動化的最新法規整理工具，爬找全國法規資料庫最新的法規資訊，並透過 Google Gemini AI API生成結構化且易讀的重點摘要。
+這是一個自動化的最新法規整理工具，爬找全國法規資料庫最新的法規資訊，並透過 Google Gemini AI API生成結構化且易讀的重點摘要。同時，此工具也提供多種輸出格式，包括 Markdown、JSON、Terminal 直接顯示等選項。
 
 ## 功能特色
 
-- **自動化爬蟲**: 自動抓取最新的法規異動公告。
-- **AI 智能摘要**: 整合 Google Gemini AI，自動提取法規重點，包括：
+- **自動化爬蟲**: 自動抓取最新的法規公告。
+- **AI 摘要**: 整合 Google Gemini AI，自動提取法規重點，包括：
   - 法規類別與依據
   - 主要變革內容
   - 影響對象
   - 生效日期
-- **高效能並發處理**: 採用 Go 語言的 Concurrency (Goroutines & Channels) 架構，大幅提升處理速度。
+- **高效能並發處理**: 採用 Concurrency (Goroutines & Channels) 架構。
 - **多樣化輸出格式**:
   - `markdown`: 生成 Markdown 格式文件 (預設)。
   - `json`:  JSON 格式資料。
-  - `mdstdout`: 直接在終端機 (Terminal) 顯示Markdown格式 (支援顏色與樣式)。
+  - `mdstdout`: 直接在Terminal顯示Markdown格式 (支援顏色與樣式)。
 - **AI 模型彈性**:
   - **模型選擇**: 可指定使用的 Gemini 模型 (如 `gemini-2.5-flash`, `gemini-2.0-flash` 等)。
-  - **自訂 Prompt**: 支援載入外部的摘要 Prompt提示詞調整。
+  - **自訂 Prompt**: 支援載入外部的摘要 Prompt 提示詞調整。
 
 
 ## 快速開始
@@ -25,17 +25,17 @@
 ### 環境需求
 
 - **Go**: 版本 1.25 或以上。
-- **API Key**: Google Gemini API Key。 [點此申請](https://aistudio.google.com/app/apikey)
+- **API Key**: Google Gemini API Key。 [LINK](https://aistudio.google.com/app/apikey)
 
 ### 安裝與建置
 
-1. **克隆專案 (Clone)**:
+1. **下載**:
    ```bash
    git clone <repository-url>
    cd regcrawler
    ```
 
-2. **安裝依賴**:
+2. **安裝程式庫**:
    ```bash
    go mod tidy
    ```
@@ -43,8 +43,8 @@
 3. **建置執行檔**:
    使用 Makefile 建置：
    ```bash
-   make build    # 一般建置
-   make release  # 產品建置 (檔案更小)
+   make build  
+   make release 
    ```
    或手動建置：
    ```bash
@@ -71,8 +71,8 @@
 | :--- | :--- | :--- |
 | `-format` | `markdown` | 輸出格式。可選值: `markdown`, `json`, `mdstdout`。 |
 | `-model` | `gemini-2.5-flash` | 指定使用的 AI 模型版本。 |
-| `-prompt` | `""` | 指定自訂 Prompt 文字檔的路徑。若未指定則使用內建預設值。 |
-| `-output` | `""` | 指定輸出檔案名稱。若未指定則根據格式使用預設檔名。 |
+| `-prompt` | 無 | 指定自訂 Prompt 文字檔的路徑。若未指定則使用內建預設值。 |
+| `-output` | 無 | 指定輸出檔案名稱。若未指定則根據格式使用預設檔名。 |
 
 ### 使用範例
 
@@ -95,7 +95,7 @@
 ```
 
 **4. 更改 AI 模型**
-切換使用 `gemini-2.5-flash` 模型來獲得更詳細的分析（視模型特性而定）。
+切換使用 `gemini-2.5-flash`。
 ```bash
 ./regcrawler -model=gemini-2.5-flash
 ```
