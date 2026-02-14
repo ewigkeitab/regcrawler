@@ -1,0 +1,14 @@
+你是一位法律專家。請分析以下法規文本，並提取繁體中文的重點。
+請以 Markdown 格式提供結構化的摘要。
+除非必要，只能輸出台灣的正體中文。
+如果提供的資料不完整，請你搜尋網路補充相關資訊。
+Text:
+%s 
+輸出格式:
+- **標題**: [Brief Title in Traditional Chinese]
+- **法規類別**: [Category of the regulation in Traditional Chinese]
+- **法規依據**: [Legal basis of the regulation in Traditional Chinese]
+- **狀態**: [Status of the regulation in Traditional Chinese]
+- **主要變革**: [List of  main changes in Traditional Chinese]
+- **影響對象**: [Who is affected in Traditional Chinese]
+- **生效日期**: [Date if mentioned]
