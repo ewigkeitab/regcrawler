@@ -9,6 +9,7 @@ import (
 
 	"regcrawler/pkg/logger"
 	"regcrawler/pkg/models"
+	"regcrawler/pkg/storage"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/google/generative-ai-go/genai"
@@ -61,7 +62,7 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 			continue
 		}
 
-		if reg.Keypoints != "" && !strings.HasPrefix(reg.Keypoints, "Error") && !strings.HasPrefix(reg.Keypoints, "⚠️") {
+		if reg.Keypoints != "" && !strings.HasPrefix(reg.Keypoints, "Error") && !strings.HasPrefix(reg.Keypoints, "[warning]") {
 			if !strings.Contains(reg.Keypoints, "Affected Entities") {
 				logger.Muted("Skipping: Already processed.")
 				output <- reg
@@ -74,7 +75,7 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 		resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 		if err != nil {
 			logger.Error("Error processing item: %v", err)
-			reg.Keypoints = fmt.Sprintf("⚠️ Summary unavailable: Error (%v)", err)
+			reg.Keypoints = fmt.Sprintf("[warning] Summary unavailable: Error (%v)", err)
 			if strings.Contains(err.Error(), "429") {
 				logger.Warn("Rate limit exceeded. Stopping stream.")
 				output <- reg
@@ -92,8 +93,16 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 				reg.Keypoints = text
 				processedCount++
 				logger.Success("Generated summary.")
+				// Remove from storage on success
+				if err := storage.DeleteProcessed(reg.Link); err != nil {
+					logger.Error("Failed to remove processed item from database: %v", err)
+				}
+				// Append to fully processed tracking DB
+				if err := storage.MarkProcessed(reg.Link); err != nil {
+					logger.Error("Failed to mark item as fully processed in database: %v", err)
+				}
 			} else {
-				reg.Keypoints = "⚠️ Summary unavailable: Empty response from API."
+				reg.Keypoints = "[warning] Summary unavailable: Empty response from API."
 				logger.Warn("Empty response from AI.")
 			}
 		}
@@ -123,7 +132,7 @@ func GenerateMarkdownReport(data []models.Regulation, filename string) {
 func GenerateMarkdown(data []models.Regulation) string {
 	var sb strings.Builder
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	sb.WriteString(fmt.Sprintf("# 最新法規動態彙整 (Regulatory Update Summary)\nGenerated on: %s\n\n", timestamp))
+	sb.WriteString(fmt.Sprintf("# 最新法規動態彙整\n整理時間: %s\n\n", timestamp))
 
 	for _, item := range data {
 		title := item.Title
@@ -146,9 +155,9 @@ func GenerateMarkdown(data []models.Regulation) string {
 		sb.WriteString(fmt.Sprintf("## [%s](%s)\n", title, link))
 		sb.WriteString(fmt.Sprintf("**發布日期**: %s\n\n", date))
 
-		if strings.HasPrefix(keypoints, "⚠️") {
+		if strings.HasPrefix(keypoints, "[warning]") {
 			sb.WriteString(fmt.Sprintf("> [!WARNING]\n> %s\n", keypoints))
-			sb.WriteString(fmt.Sprintf("> \n> [Original Text Link](%s)\n", link))
+			sb.WriteString(fmt.Sprintf("> \n> [原始資料來源](%s)\n", link))
 		} else {
 			sb.WriteString(fmt.Sprintf("%s\n", keypoints))
 		}

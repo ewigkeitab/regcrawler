@@ -11,6 +11,10 @@ This is an automated tool for organizing the latest regulations. It crawls the l
   - Affected parties
   - Effective date
 - **High-Performance Concurrent Processing**: Built with Go's Concurrency (Goroutines & Channels) architecture.
+- **SQLite Storage & Retry Mechanism**: 
+  - Automatically records unprocessed or failed items (e.g., API 429 errors).
+  - Automatically retries on the next run to ensure data integrity.
+  - Prevents redundant processing of completed items to save API quota.
 - **Multiple Output Formats**:
   - `markdown`: Generates Markdown files (default).
   - `json`: Data in JSON format.
@@ -69,6 +73,8 @@ This is an automated tool for organizing the latest regulations. It crawls the l
 
 | Flag | Default | Description |
 | :--- | :--- | :--- |
+| `-scrape` | `true` | Whether to run the scraper to fetch new regulations. |
+| `-process` | `true` | Whether to run the AI processor for summarization. |
 | `-format` | `markdown` | Output format. Options: `markdown`, `json`, `mdstdout`. |
 | `-model` | `gemini-2.5-flash` | Specify the AI model version. |
 | `-prompt` | None | Path to a custom Prompt text file. Uses internal default if not specified. |
@@ -115,11 +121,20 @@ To adjust the AI's summary format or tone, create a text file (e.g., `myprompt.t
 
 ## Project Structure
 
-- `cmd/regcrawler/`: Entry point (main).
+- `cmd/regcrawler/`: Entry point (main) and execution flow control.
 - `pkg/scraper/`: Responsible for crawling regulatory data from websites.
 - `pkg/processor/`: Handles AI processing and summary generation.
 - `pkg/exporter/`: Responsible for exporting results to different formats (JSON, Markdown).
+- `pkg/storage/`: Handles SQLite database operations, managing pending and completed items.
 - `pkg/logger/`: Provides beautiful terminal log output tools.
 - `pkg/models/`: Defines data structures.
 - `prompt.txt`: Default Prompt example.
+
+## Storage Information
+
+This tool uses SQLite to track progress. The database file is located at:
+- macOS: `~/Library/Caches/regcrawler/data.db`
+- Linux: `~/.cache/regcrawler/data.db`
+
+To re-crawl all data, you can manually delete the `data.db` file in that directory.
 

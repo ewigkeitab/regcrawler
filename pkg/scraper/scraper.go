@@ -9,13 +9,14 @@ import (
 
 	"regcrawler/pkg/logger"
 	"regcrawler/pkg/models"
+	"regcrawler/pkg/storage"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
 const (
 	BaseURL        = "https://law.moj.gov.tw"
-	NewsURL        = "https://law.moj.gov.tw/News/NewsList.aspx"
+	NewsURL        = "https://law.moj.gov.tw/News/NewsList.aspx?type=all&psize=60"
 	GazetteBaseURL = "https://gazette.nat.gov.tw"
 	UserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
 )
@@ -74,6 +75,16 @@ func FetchNewRegulations(out chan<- models.Regulation) error {
 						if err == nil {
 							dateAD = fmt.Sprintf("%d-%s-%s", year+1911, parts[1], parts[2])
 						}
+					}
+
+					// Skip fetching if already fully processed or waiting in unprocessed DB
+					if storage.HasBeenProcessed(href) {
+						logger.Muted("已在資料庫 (已產生摘要): %s", title)
+						return
+					}
+					if storage.IsUnprocessed(href) {
+						logger.Muted("已在資料庫 (未產生摘要): %s", title)
+						return
 					}
 
 					content := FetchContent(href)

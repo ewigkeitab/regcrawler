@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"regcrawler/pkg/logger"
 	"regcrawler/pkg/models"
 	"regcrawler/pkg/processor"
+	"regcrawler/pkg/storage"
 )
 
 func main() {
@@ -47,11 +49,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	logger.Title("RegCrawler - Regulatory Scraper & Summarizer")
+	logger.Section("Initialization")
+
+	// Init DB
+	if err := storage.InitDB(); err != nil {
+		logger.Error("Failed to initialize database: %v", err)
+		os.Exit(1)
+	}
+
+	// Load Unprocessed Items
+	unprocessedItems, err := storage.GetUnprocessed()
+	if err != nil {
+		logger.Warn("Failed to load unprocessed items: %v", err)
+	} else if len(unprocessedItems) > 0 {
+		logger.Info("Loaded %d unprocessed items from local storage to retry.", len(unprocessedItems))
+	}
+
 	// Channels
-	// Scraper -> scrapeQueue -> Processor/Saver
-	scrapeQueue := make(chan models.Regulation, 30)
-	// Processor -> resultQueue -> Saver
-	resultQueue := make(chan models.Regulation, 30)
+	scrapeQueue := make(chan models.Regulation, 60)                                      // Scraper -> Saver
+	processQueue := make(chan models.Regulation, len(unprocessedItems)+len(scrapeQueue)) // Saver -> Processor
+	resultQueue := make(chan models.Regulation, len(unprocessedItems)+len(scrapeQueue))  // Processor -> Collector
 
 	// Context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -66,22 +84,41 @@ func main() {
 		cancel()
 	}()
 
-	logger.Title("RegCrawler - Regulatory Scraper & Summarizer")
-	logger.Section("Initialization")
+	var wg sync.WaitGroup
 
 	// 1. Start Scraper
 	runScraper(*scrapeFlag, scrapeQueue)
 
+	// 1.5. DB Intermediary (Saver)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// First, inject previously unprocessed items to processQueue
+		for _, item := range unprocessedItems {
+			processQueue <- item
+		}
+		// Then, process incoming newly scraped items
+		for reg := range scrapeQueue {
+			// Save to DB before trying to process
+			if err := storage.SaveUnprocessed(reg); err != nil {
+				logger.Error("Failed to save to database %s: %v", reg.Link, err)
+			}
+			processQueue <- reg
+		}
+		close(processQueue)
+	}()
+
 	// 2. Start Processor
-	runProcessor(ctx, *processFlag, apiKey, *modelFlag, promptTemplate, scrapeQueue, resultQueue)
+	runProcessor(ctx, *processFlag, apiKey, *modelFlag, promptTemplate, processQueue, resultQueue)
 
-	// 3. Collect Results (Saver)
+	// 3. Collect Results
 	var allRegulations []models.Regulation
-	// logger.Info("Waiting for results...")
-
 	for reg := range resultQueue {
 		allRegulations = append(allRegulations, reg)
 	}
+
+	// Wait for DB Saver to finish all writes cleanly
+	wg.Wait()
 
 	// 4. Report
 	logger.Section("Report Generation")

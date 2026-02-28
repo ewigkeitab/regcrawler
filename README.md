@@ -11,6 +11,10 @@
   - 影響對象
   - 生效日期
 - **高效能並發處理**: 採用 Concurrency (Goroutines & Channels) 架構。
+- **SQLite 儲存與重試機制**: 
+  - 自動紀錄未處理或處理失敗的項目 (例如 API 429 錯誤)。
+  - 下次執行時自動重試，確保資料完整性。
+  - 防止重複處理已完成的項目，節省 API 額度。
 - **多樣化輸出格式**:
   - `markdown`: 生成 Markdown 格式文件 (預設)。
   - `json`:  JSON 格式資料。
@@ -69,6 +73,8 @@
 
 | 參數 | 預設值 | 說明 |
 | :--- | :--- | :--- |
+| `-scrape` | `true` | 是否執行爬蟲抓取新法規。 |
+| `-process` | `true` | 是否執行 AI 處理與摘要生成。 |
 | `-format` | `markdown` | 輸出格式。可選值: `markdown`, `json`, `mdstdout`。 |
 | `-model` | `gemini-2.5-flash` | 指定使用的 AI 模型版本。 |
 | `-prompt` | 無 | 指定自訂 Prompt 文字檔的路徑。若未指定則使用內建預設值。 |
@@ -115,11 +121,20 @@
 
 ## 專案結構
 
-- `cmd/regcrawler/`: 程式進入點 (main)。
+- `cmd/regcrawler/`: 程式進入點 (main) 與執行流程控制。
 - `pkg/scraper/`: 負責從網站爬取法規資料。
 - `pkg/processor/`: 負責呼叫 AI 進行處理與生成摘要。
 - `pkg/exporter/`: 負責將處理後的資料匯出成不同格式 (JSON, Markdown)。
+- `pkg/storage/`: SQLite模組，管理待處理與已處理項目。
 - `pkg/logger/`: 提供美觀的終端機日誌輸出工具。
 - `pkg/models/`: 定義資料結構。
 - `prompt.txt`: 預設的 Prompt 範例。
+
+## 儲存說明
+
+本工具使用 SQLite 儲存進度，資料庫檔案預設位於：
+- macOS: `~/Library/Caches/regcrawler/data.db`
+- Linux: `~/.cache/regcrawler/data.db`
+
+如果需要重新爬取所有資料，可以手動刪除該目錄下的 `data.db`。
 
