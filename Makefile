@@ -11,6 +11,10 @@ build:
 release:
 	go build -ldflags="-s -w" -o $(BINARY_NAME) ./cmd/regcrawler
 
+# Run the application
+run: build
+	./$(BINARY_NAME)
+
 # Clean build artifacts and generated files
 clean:
 	rm -f $(BINARY_NAME)

@@ -22,6 +22,7 @@ This is an automated tool for organizing the latest regulations. It crawls the l
 - **AI Model Flexibility**:
   - **Model Selection**: Specify the Gemini model (e.g., `gemini-2.5-flash`, `gemini-2.0-flash`).
   - **Custom Prompt**: Supports loading external Prompt templates to adjust the AI's summary style.
+  - **Skip AI**: Supports the `-skip-ai` flag to only run the scraper and list regulations without generating AI summaries.
 
 
 ## Quick Start
@@ -76,6 +77,7 @@ This is an automated tool for organizing the latest regulations. It crawls the l
 | `-scrape` | `true` | Whether to run the scraper to fetch new regulations. |
 | `-process` | `true` | Whether to run the AI processor for summarization. |
 | `-format` | `markdown` | Output format. Options: `markdown`, `json`, `mdstdout`. |
+| `-skip-ai` | `false` | Whether to skip AI processing (scraping only). |
 | `-model` | `gemini-2.5-flash` | Specify the AI model version. |
 | `-prompt` | None | Path to a custom Prompt text file. Uses internal default if not specified. |
 | `-output` | None | Path to the output file. Uses internal default if not specified. |

@@ -8,11 +8,13 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"regcrawler/pkg/logger"
 	"regcrawler/pkg/models"
 	"regcrawler/pkg/processor"
 	"regcrawler/pkg/storage"
+	"strings"
 )
 
 func main() {
@@ -87,7 +89,7 @@ func main() {
 	var wg sync.WaitGroup
 
 	// 1. Start Scraper
-	runScraper(*scrapeFlag, scrapeQueue)
+	runScraper(ctx, *scrapeFlag, scrapeQueue)
 
 	// 1.5. DB Intermediary (Saver)
 	wg.Add(1)
@@ -109,18 +111,67 @@ func main() {
 	}()
 
 	// 2. Start Processor
-	runProcessor(ctx, *processFlag, apiKey, *modelFlag, promptTemplate, processQueue, resultQueue)
+	runProcessor(ctx, cancel, *processFlag, apiKey, *modelFlag, promptTemplate, processQueue, resultQueue)
 
 	// 3. Collect Results
 	var allRegulations []models.Regulation
+	outputFile := *outputFlag
+	if outputFile == "" && *formatFlag == "markdown" {
+		outputFile = "regulatory_report.md"
+	}
+
+	var f *os.File
+	if *formatFlag == "markdown" && outputFile != "" {
+		var err error
+		f, err = os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			logger.Error("Failed to open output file: %v", err)
+		} else {
+			defer f.Close()
+			// If file is new or empty, write header
+			info, _ := f.Stat()
+			if info.Size() == 0 {
+				timestamp := time.Now().Format("2006-01-02 15:04:05")
+				header := fmt.Sprintf("# 最新法規動態彙整\n整理時間: %s\n\n", timestamp)
+				if _, err := f.WriteString(header); err != nil {
+					logger.Error("Failed to write header: %v", err)
+				}
+			}
+		}
+	}
+
 	for reg := range resultQueue {
 		allRegulations = append(allRegulations, reg)
+
+		// Immediate writing for markdown
+		if *formatFlag == "markdown" && f != nil {
+			md := processor.GenerateItemMarkdown(reg)
+			if _, err := f.WriteString(md); err != nil {
+				logger.Error("Failed to write item to markdown: %v", err)
+			}
+		}
+
+		// Immediate DB marking if successfully processed
+		// Note: We check if it's not a warning/error (matching logic in processor.go)
+		if reg.Keypoints != "" && !strings.HasPrefix(reg.Keypoints, "[warning]") && !strings.HasPrefix(reg.Keypoints, "Error") {
+			if err := storage.DeleteProcessed(reg.Link); err != nil {
+				logger.Error("Failed to remove processed item from database: %v", err)
+			}
+			if err := storage.MarkProcessed(reg.Link); err != nil {
+				logger.Error("Failed to mark item as fully processed in database: %v", err)
+			}
+			logger.Info("Marked %s as processed in database.", reg.Title)
+		}
 	}
 
 	// Wait for DB Saver to finish all writes cleanly
 	wg.Wait()
 
 	// 4. Report
-	logger.Section("Report Generation")
-	runReporter(allRegulations, *formatFlag, *outputFlag)
+	if *formatFlag != "markdown" {
+		logger.Section("Report Generation")
+		runReporter(allRegulations, *formatFlag, *outputFlag)
+	} else {
+		logger.Success("Incremental Markdown report updated in %s", outputFile)
+	}
 }

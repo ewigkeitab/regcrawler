@@ -1,6 +1,7 @@
 package scraper
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -21,7 +22,7 @@ const (
 	UserAgent      = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
 )
 
-func FetchNewRegulations(out chan<- models.Regulation) error {
+func FetchNewRegulations(ctx context.Context, out chan<- models.Regulation) error {
 	defer close(out)
 	logger.Info("Fetching new regulations from %s...", NewsURL)
 
@@ -50,6 +51,11 @@ func FetchNewRegulations(out chan<- models.Regulation) error {
 	// Parsing the table
 	count := 0
 	doc.Find("tr").Each(func(i int, s *goquery.Selection) {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		cells := s.Find("td")
 		if cells.Length() >= 4 {
 			dateROC := strings.TrimSpace(cells.Eq(1).Text())

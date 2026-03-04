@@ -22,6 +22,7 @@
 - **AI 模型彈性**:
   - **模型選擇**: 可指定使用的 Gemini 模型 (如 `gemini-2.5-flash`, `gemini-2.0-flash` 等)。
   - **自訂 Prompt**: 支援載入外部的摘要 Prompt 提示詞調整。
+  - **略過 AI**: 支援 `-skip-ai` 選項，僅執行爬蟲並生成包含原始連結的報告，不進行 AI 摘要（節省 API 配額）。
 
 
 ## 快速開始
@@ -76,6 +77,7 @@
 | `-scrape` | `true` | 是否執行爬蟲抓取新法規。 |
 | `-process` | `true` | 是否執行 AI 處理與摘要生成。 |
 | `-format` | `markdown` | 輸出格式。可選值: `markdown`, `json`, `mdstdout`。 |
+| `-skip-ai` | `false` | 是否略過 AI 處理 (僅抓取與列出法規)。 |
 | `-model` | `gemini-2.5-flash` | 指定使用的 AI 模型版本。 |
 | `-prompt` | 無 | 指定自訂 Prompt 文字檔的路徑。若未指定則使用內建預設值。 |
 | `-output` | 無 | 指定輸出檔案名稱。若未指定則根據格式使用預設檔名。 |
