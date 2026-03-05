@@ -50,10 +50,10 @@ func FetchNewRegulations(ctx context.Context, out chan<- models.Regulation) erro
 
 	// Parsing the table
 	count := 0
-	doc.Find("tr").Each(func(i int, s *goquery.Selection) {
+	doc.Find("tr").EachWithBreak(func(i int, s *goquery.Selection) bool {
 		select {
 		case <-ctx.Done():
-			return
+			return false // Stop EachWithBreak
 		default:
 		}
 		cells := s.Find("td")
@@ -86,14 +86,14 @@ func FetchNewRegulations(ctx context.Context, out chan<- models.Regulation) erro
 					// Skip fetching if already fully processed or waiting in unprocessed DB
 					if storage.HasBeenProcessed(href) {
 						logger.Muted("已在資料庫 (已產生摘要): %s", title)
-						return
+						return true
 					}
 					if storage.IsUnprocessed(href) {
 						logger.Muted("已在資料庫 (未產生摘要): %s", title)
-						return
+						return true
 					}
 
-					content := FetchContent(href)
+					content := FetchContent(ctx, href)
 					count++
 
 					// Log less verbosely, maybe just a muted log for each item found
@@ -109,13 +109,14 @@ func FetchNewRegulations(ctx context.Context, out chan<- models.Regulation) erro
 				}
 			}
 		}
+		return true // Continue EachWithBreak
 	})
 
 	logger.Success("Fetched %d regulations.", count)
 	return nil
 }
 
-func FetchContent(pageURL string) string {
+func FetchContent(ctx context.Context, pageURL string) string {
 	// Reduce verbosity
 	// logger.Muted("Fetching content from %s...", pageURL)
 
@@ -124,7 +125,7 @@ func FetchContent(pageURL string) string {
 	}
 	client := &http.Client{Transport: tr}
 
-	req, err := http.NewRequest("GET", pageURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
 	if err != nil {
 		logger.Error("Error creating request: %v", err)
 		return ""
@@ -166,14 +167,18 @@ func FetchContent(pageURL string) string {
 			}
 			// logger.Muted("Redirecting to Web Text Version...")
 
-			respText, err := client.Get(targetURL)
+			reqText, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 			if err == nil {
-				defer respText.Body.Close()
-				docText, err := goquery.NewDocumentFromReader(respText.Body)
+				reqText.Header.Set("User-Agent", UserAgent)
+				respText, err := client.Do(reqText)
 				if err == nil {
-					content = docText.Text()
-					content = strings.TrimSpace(content)
-					return content
+					defer respText.Body.Close()
+					docText, err := goquery.NewDocumentFromReader(respText.Body)
+					if err == nil {
+						content = docText.Text()
+						content = strings.TrimSpace(content)
+						return content
+					}
 				}
 			}
 		}

@@ -123,11 +123,17 @@ To adjust the AI's summary format or tone, create a text file (e.g., `myprompt.t
 
 ## Project Structure
 
-- `cmd/regcrawler/`: Entry point (main) and execution flow control.
+- `cmd/regcrawler/`: Entry point and pipeline orchestration.
+  - `main.go`: Signal handling and context initialization.
+  - `config.go`: Flag parsing and environment setup.
+  - `pipeline.go`: Concurrency control and flow logic.
+  - `feeder.go`: Data feeding (Injecting DB items + Scraping).
+  - `safety_drain.go`: Shutdown and error safety mechanism.
+  - `collector.go`: Result aggregation and incremental export.
 - `pkg/scraper/`: Responsible for crawling regulatory data from websites.
 - `pkg/processor/`: Handles AI processing and summary generation.
-- `pkg/exporter/`: Responsible for exporting results to different formats (JSON, Markdown).
-- `pkg/storage/`: Handles SQLite database operations, managing pending and completed items.
+- `pkg/exporter/`: Responsible for exporting results to different formats.
+- `pkg/storage/`: Handles SQLite database operations and data safety.
 - `pkg/logger/`: Provides beautiful terminal log output tools.
 - `pkg/models/`: Defines data structures.
 - `prompt.txt`: Default Prompt example.

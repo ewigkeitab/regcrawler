@@ -35,6 +35,11 @@ func InitDB() error {
 	}
 	db = database
 
+	// Set busy timeout to handle concurrent access
+	if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
+		logger.Warn("Failed to set SQLite busy_timeout: %v", err)
+	}
+
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS unprocessed_regulations (
 		link TEXT PRIMARY KEY,

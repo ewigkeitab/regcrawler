@@ -123,11 +123,17 @@
 
 ## 專案結構
 
-- `cmd/regcrawler/`: 程式進入點 (main) 與執行流程控制。
+- `cmd/regcrawler/`: 程式進入點與核心管線調度。
+  - `main.go`: 訊號處理與進度初始化。
+  - `config.go`: 參數解析與環境設定。
+  - `pipeline.go`: 並發流程控制。
+  - `feeder.go`: 資料餵送邏輯 (DB + Scraper)。
+  - `safety_drain.go`: 異常或中斷時的資料安全保護機制。
+  - `collector.go`: 結果彙整與增量輸出。
 - `pkg/scraper/`: 負責從網站爬取法規資料。
 - `pkg/processor/`: 負責呼叫 AI 進行處理與生成摘要。
-- `pkg/exporter/`: 負責將處理後的資料匯出成不同格式 (JSON, Markdown)。
-- `pkg/storage/`: SQLite模組，管理待處理與已處理項目。
+- `pkg/exporter/`: 負責將處理後的資料匯出成不同格式。
+- `pkg/storage/`: SQLite 模組，管理與保護法規資料狀態。
 - `pkg/logger/`: 提供美觀的終端機日誌輸出工具。
 - `pkg/models/`: 定義資料結構。
 - `prompt.txt`: 預設的 Prompt 範例。

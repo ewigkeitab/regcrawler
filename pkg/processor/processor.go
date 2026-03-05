@@ -48,6 +48,13 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 	processedCount := 0
 
 	for reg := range input {
+		select {
+		case <-ctx.Done():
+			logger.Warn("Processor stopping: context cancelled.")
+			return ctx.Err()
+		default:
+		}
+
 		// Basic check if we should process this regulation
 		// In a real scenario, we might want to check against an existing list here or before sending to channel.
 		// For this refactor, we process everything that comes in.
@@ -99,7 +106,15 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 		}
 
 		output <- reg
-		time.Sleep(5 * time.Second) // Rate limiting
+
+		// Rate limiting with context awareness
+		select {
+		case <-time.After(5 * time.Second):
+			// Continue
+		case <-ctx.Done():
+			logger.Warn("Processor interrupted during rate limiting.")
+			return ctx.Err()
+		}
 	}
 
 	return nil
