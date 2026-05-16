@@ -31,7 +31,8 @@ func runPipeline(ctx context.Context, cancel context.CancelFunc, cfg *Config) {
 	go func() {
 		defer wg.Done()
 		if cfg.ProcessFlag && ctx.Err() == nil {
-			runProcessor(ctx, cancel, cfg.ProcessFlag, cfg.APIKey, cfg.ModelFlag, cfg.PromptTemplate, processQueue, resultQueue)
+			procCfg := GetProcessorConfig()
+			runProcessor(ctx, cancel, cfg.ProcessFlag, cfg.APIKey, GetModelList(), procCfg.IntervalTime, cfg.PromptTemplate, processQueue, resultQueue)
 		} else {
 			close(processQueue)
 			close(resultQueue)

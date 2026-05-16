@@ -32,20 +32,20 @@ Text:
 - **生效日期**: [Date if mentioned]
 `
 
-// ProcessStream reads regulations from input channel, processes them with Gemini, and sends to output channel
-func ProcessStream(ctx context.Context, apiKey string, modelName string, promptTemplate string, input <-chan models.Regulation, output chan<- models.Regulation) error {
-	defer close(output)
-
+// ProcessStream reads regulations from input channel, processes them with Gemini (falling back to next models on 429), and sends to output channel
+func ProcessStream(ctx context.Context, apiKey string, modelNames []string, promptTemplate string, interval time.Duration, input <-chan models.Regulation, output chan<- models.Regulation) error {
 	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return fmt.Errorf("failed to create genai client: %w", err)
 	}
 	defer client.Close()
 
-	logger.Info("Using AI Model: %s", modelName)
-	model := client.GenerativeModel(modelName)
+	if len(modelNames) == 0 {
+		return fmt.Errorf("no models provided")
+	}
 
-	processedCount := 0
+	currentModelIdx := 0
+	logger.Info("Starting processor with primary model: %s", modelNames[currentModelIdx])
 
 	for reg := range input {
 		select {
@@ -55,19 +55,17 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 		default:
 		}
 
-		// Basic check if we should process this regulation
-		// In a real scenario, we might want to check against an existing list here or before sending to channel.
-		// For this refactor, we process everything that comes in.
-
 		logger.Section("Processing: " + reg.Title)
 
 		if reg.Content == "" {
 			logger.Muted("Skipping: No content found.")
 			reg.Keypoints = "No content available to summarize."
+			reg.Content = reg.Title
 			output <- reg
 			continue
 		}
 
+		// Skip if already processed (unless it's an error/warning)
 		if reg.Keypoints != "" && !strings.HasPrefix(reg.Keypoints, "Error") && !strings.HasPrefix(reg.Keypoints, "[warning]") {
 			if !strings.Contains(reg.Keypoints, "Affected Entities") {
 				logger.Muted("Skipping: Already processed.")
@@ -78,38 +76,61 @@ func ProcessStream(ctx context.Context, apiKey string, modelName string, promptT
 
 		prompt := fmt.Sprintf(promptTemplate, reg.Content)
 
-		resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-		if err != nil {
-			logger.Error("Error processing item: %v", err)
-			reg.Keypoints = fmt.Sprintf("[warning] Summary unavailable: Error (%v)", err)
-			if strings.Contains(err.Error(), "429") {
-				logger.Warn("Rate limit exceeded. Stopping stream.")
-				output <- reg
-				return fmt.Errorf("rate limit exceeded (429): %w", err)
-			}
-		} else {
-			text := ""
-			if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-				if txt, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
-					text = string(txt)
-				}
-			}
+		// Fallback loop for the current regulation
+		var lastErr error
+		for currentModelIdx < len(modelNames) {
+			modelName := modelNames[currentModelIdx]
+			model := client.GenerativeModel(modelName)
 
-			if text != "" {
-				reg.Keypoints = text
-				processedCount++
-				logger.Success("Generated summary.")
+			resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+			if err != nil {
+				lastErr = err
+				if strings.Contains(err.Error(), "429") {
+					logger.Warn("Model %s returned 429 (Too Many Requests).", modelName)
+					currentModelIdx++
+					if currentModelIdx < len(modelNames) {
+						logger.Info("Falling back to next model: %s", modelNames[currentModelIdx])
+						continue // Retry with next model
+					} else {
+						logger.Error("All models exhausted or rate limited.")
+						reg.Keypoints = fmt.Sprintf("[warning] Summary unavailable: All models rate limited (Last error: %v)", err)
+						break
+					}
+				} else {
+					logger.Error("Error processing item with %s: %v", modelName, err)
+					reg.Keypoints = fmt.Sprintf("[warning] Summary unavailable: Error (%v)", err)
+					break // Non-429 error, don't fallback?
+				}
 			} else {
-				reg.Keypoints = "[warning] Summary unavailable: Empty response from API."
-				logger.Warn("Empty response from AI.")
+				text := ""
+				if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+					if txt, ok := resp.Candidates[0].Content.Parts[0].(genai.Text); ok {
+						text = string(txt)
+					}
+				}
+
+				if text != "" {
+					reg.Keypoints = text
+					logger.Success("Generated summary using %s.", modelName)
+					lastErr = nil // Success
+				} else {
+					reg.Keypoints = "[warning] Summary unavailable: Empty response from API."
+					logger.Warn("Empty response from AI (%s).", modelName)
+				}
+				break // Success or empty response, move to next item
 			}
 		}
 
 		output <- reg
 
+		if currentModelIdx >= len(modelNames) {
+			logger.Error("Processor stopping: All models exhausted.")
+			return fmt.Errorf("all models exhausted: %w", lastErr)
+		}
+
 		// Rate limiting with context awareness
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(interval):
 			// Continue
 		case <-ctx.Done():
 			logger.Warn("Processor interrupted during rate limiting.")
